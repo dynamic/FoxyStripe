@@ -232,7 +232,7 @@ class Order extends DataObject implements PermissionProvider
             $this->ReceiptURL = (string) $transaction->receipt_url;
             $this->OrderStatus = (string) $transaction->status;
 
-            $this->extend('handleOrderInfo', $order, $response);
+            $this->extend('handleOrderInfo', $this, $response);
         }
     }
 
@@ -327,7 +327,7 @@ class Order extends DataObject implements PermissionProvider
                 $OrderDetail->Price = (float) $detail->product_price + (float) $priceModifier;
 
                 // extend OrderDetail parsing, allowing for recording custom fields from FoxyCart
-                $this->extend('handleOrderItem', $order, $response, $OrderDetail);
+                $this->extend('handleOrderItem', $this, $response, $OrderDetail);
 
                 // write
                 $OrderDetail->write();

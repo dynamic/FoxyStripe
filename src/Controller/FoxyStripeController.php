@@ -20,10 +20,10 @@ class FoxyStripeController extends \PageController
     /**
      * @var array
      */
-    private static $allowed_actions = array(
+    private static $allowed_actions = [
         'index',
         'sso',
-    );
+    ];
 
     /**
      * @return string
@@ -90,18 +90,20 @@ class FoxyStripeController extends \PageController
     }
 
     /**
-     * @param array $transactions
+     * @param \SimpleXMLElement $transactions
      * @param Order $order
+     * @throws \SilverStripe\ORM\ValidationException
      */
     public function parseOrder($transactions, $order)
     {
         $this->parseOrderInfo($transactions, $order);
         $this->parseOrderCustomer($transactions, $order);
         $this->parseOrderDetails($transactions, $order);
+        $this->extend('updateParseOrder', $transactions, $order);
     }
 
     /**
-     * @param array $orders
+     * @param \SimpleXMLElement $orders
      * @param Order $transaction
      */
     public function parseOrderInfo($orders, $transaction)
@@ -120,11 +122,11 @@ class FoxyStripeController extends \PageController
     }
 
     /**
-     * @param array $orders
+     * @param \SimpleXMLElement $orders
      * @param Order $transaction
      * @throws \SilverStripe\ORM\ValidationException
      */
-    public function parseOrderCustomer($orders, $transaction)
+    public function parseOrderCustomer(&$orders, &$transaction)
     {
         foreach ($orders->transactions->transaction as $order) {
             if (!isset($order->customer_email) || $order->is_anonymous != 0) {
@@ -132,7 +134,7 @@ class FoxyStripeController extends \PageController
             }
 
             // if Customer is existing member, associate with current order
-            if (Member::get()->filter('Email', $order->customer_email)->First()) {
+            if (Member::get()->filter('Email', $order->customer_email)->first()) {
                 $customer = Member::get()->filter('Email', $order->customer_email)->First();
                 /* todo: make sure local password is updated if changed on FoxyCart
                 $this->updatePasswordFromData($customer, $order);
@@ -144,8 +146,10 @@ class FoxyStripeController extends \PageController
                 $customer->FirstName = (string)$order->customer_first_name;
                 $customer->Surname = (string)$order->customer_last_name;
                 $customer->Email = (string)$order->customer_email;
-                $this->updatePasswordFromData($customer, $order);
             }
+
+            $this->updatePasswordFromData($customer, $order);
+
             $customer->write();
             // set Order MemberID
             $transaction->MemberID = $customer->ID;
@@ -157,18 +161,20 @@ class FoxyStripeController extends \PageController
      *
      * @param Member $customer
      * @param $order
+     * @throws \SilverStripe\ORM\ValidationException
      */
-    public function updatePasswordFromData($customer, $order)
+    public function updatePasswordFromData(&$customer, &$order)
     {
         $password_encryption_algorithm = Security::config()->get('password_encryption_algorithm');
         Security::config()->update('password_encryption_algorithm', 'none');
 
         $customer->PasswordEncryption = 'none';
-        $customer->Password = (string) $order->customer_password;
+        $customer->Password = (string)$order->customer_password;
         $customer->write();
 
-        $customer->PasswordEncryption = $this->getEncryption((string) $order->customer_password_hash_type);
-        $customer->Salt = (string) $order->customer_password_salt;
+        $customer->PasswordEncryption = 'sha1_v2.4';
+        $customer->Salt = (string)$order->customer_password_salt;
+        $customer->write();
 
         Security::config()->update('password_encryption_algorithm', $password_encryption_algorithm);
     }
@@ -195,8 +201,9 @@ class FoxyStripeController extends \PageController
     }
 
     /**
-     * @param array $orders
+     * @param \SimpleXMLElement $orders
      * @param Order $transaction
+     * @throws \SilverStripe\ORM\ValidationException
      */
     public function parseOrderDetails($orders, $transaction)
     {
@@ -216,6 +223,7 @@ class FoxyStripeController extends \PageController
     /**
      * @param $product
      * @param $transaction
+     * @throws \SilverStripe\ORM\ValidationException
      */
     public function orderDetailFromProduct($product, $transaction)
     {
@@ -249,7 +257,7 @@ class FoxyStripeController extends \PageController
 
     /**
      * @param $product
-     * @return bool|ProductPage
+     * @return \SilverStripe\ORM\DataObject
      */
     public function getProductPage($product)
     {
@@ -259,8 +267,8 @@ class FoxyStripeController extends \PageController
             }
 
             return ProductPage::get()
-                ->filter('ID', (int) $productOptions->product_option_value)
-                ->First();
+                ->filter('ID', (int)$productOptions->product_option_value)
+                ->first();
         }
     }
 
@@ -277,10 +285,10 @@ class FoxyStripeController extends \PageController
         $OrderDetail->ProductID = $OrderProduct->ID;
 
         foreach ($this->getTransactionOptions($product) as $option) {
-            $OptionItem = OptionItem::get()->filter(array(
+            $OptionItem = OptionItem::get()->filter([
                 'ProductID' => (string)$OrderProduct->ID,
-                'Title' => (string)$option->product_option_value
-            ))->First();
+                'Title' => (string)$option->product_option_value,
+            ])->first();
 
             if (!$OptionItem) {
                 continue;
@@ -323,8 +331,8 @@ class FoxyStripeController extends \PageController
             $link = FoxyCart::getFoxyCartStoreName() . '.foxycart.com';
         }
 
-        $redirect_complete = 'https://'.$link.'/checkout?fc_auth_token='.$auth_token.'&fcsid='.$fcsid.
-            '&fc_customer_id='.$Member->Customer_ID.'&timestamp='.$timestampNew;
+        $redirect_complete = 'https://' . $link . '/checkout?fc_auth_token=' . $auth_token . '&fcsid=' . $fcsid .
+            '&fc_customer_id=' . $Member->Customer_ID . '&timestamp=' . $timestampNew;
 
         $this->redirect($redirect_complete);
     }

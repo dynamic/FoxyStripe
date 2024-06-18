@@ -4,6 +4,7 @@ Name: foxystripeconfig
 SilverStripe\Security\Member:
   extensions:
     - Dynamic\FoxyStripe\ORM\CustomerExtension
+  password_logging_enabled: false
 
 PageController:
   extensions:
@@ -17,3 +18,8 @@ SilverStripe\Core\Injector\Injector:
   TimeZoneData:
     properties:
       format: '%Region/%Name'
+
+'SilverStripe\Security\PasswordEncryptor':
+  encryptors:
+    bcrypt:
+      'Dynamic\FoxyStripe\Security\PasswordEncryptor_BCrypt':
